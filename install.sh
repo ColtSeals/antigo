@@ -1,27 +1,42 @@
 #!/bin/bash
-# Instalador PMESP Manager via GitHub
-# Repositório: ColtSeals/antigo
+# INSTALADOR PMESP ULTIMATE V8.0
+echo -e "\033[1;34m>>> PREPARANDO SISTEMA (SUDO/ROOT)...\033[0m"
 
-echo -e "\033[1;34m>>> BAIXANDO O GESTOR PMESP...\033[0m"
+# Garante o JQ e dependências antes de baixar o resto
+apt-get update -y
+apt-get install -y jq python3 python3-pip wget msmtp msmtp-mta ca-certificates bc screen nano net-tools lsof cron zip unzip
 
-# 1. Garante que o wget está instalado
-apt-get update -y >/dev/null 2>&1
-apt-get install wget -y >/dev/null 2>&1
+# Instala FastAPI para a API
+pip3 install fastapi uvicorn --break-system-packages 2>/dev/null || pip3 install fastapi uvicorn
 
-# 2. Define onde o arquivo vai ficar (Pasta binária global)
-# Isso permite que você digite apenas 'pmesp' no terminal depois
-CAMINHO="/usr/local/bin/pmesp"
+REPO="https://raw.githubusercontent.com/ColtSeals/antigo/main"
 
-# 3. Baixa o código 'manager.sh' do seu repositório (Link RAW)
-# Nota: Estou assumindo que a branch principal é 'main'
-wget -qO "$CAMINHO" "https://raw.githubusercontent.com/ColtSeals/antigo/main/manager.sh"
+# Baixa e configura o Manager
+wget -qO /usr/local/bin/pmesp "$REPO/manager.sh"
+chmod +x /usr/local/bin/pmesp
 
-# 4. Dá permissão de execução
-chmod +x "$CAMINHO"
+# Baixa e configura a API
+mkdir -p /etc/pmesp
+wget -qO /etc/pmesp/api_pmesp.py "$REPO/api_pmesp.py"
 
-echo -e "\033[1;32m>>> INSTALAÇÃO CONCLUÍDA!\033[0m"
-echo -e "Para abrir o painel, digite apenas: \033[1;33mpmesp\033[0m"
-sleep 2
+# Cria serviço da API (Auto-start)
+cat <<EOF > /etc/systemd/system/pmesp-api.service
+[Unit]
+Description=API PMESP
+After=network.target
 
-# 5. Executa o painel agora
-pmesp
+[Service]
+User=root
+WorkingDirectory=/etc/pmesp
+ExecStart=/usr/local/bin/uvicorn api_pmesp:app --host 0.0.0.0 --port 8000
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable pmesp-api.service
+systemctl restart pmesp-api.service
+
+echo -e "\033[1;32m>>> TUDO PRONTO! Digite 'pmesp' para abrir.\033[0m"
