@@ -7,5 +7,4 @@
 
 
 
-
-wget -qO /usr/local/bin/pmesp https://raw.githubusercontent.com/ColtSeals/antigo/main/manager.sh && chmod +x /usr/local/bin/pmesp && pmesp
+wget -qO install.sh https://raw.githubusercontent.com/ColtSeals/antigo/main/install.sh && chmod +x install.sh && ./install.sh
