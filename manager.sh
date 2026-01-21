@@ -1,6 +1,6 @@
 #!/bin/bash
 # ==================================================================
-#  PMESP MANAGER ULTIMATE V8.0 - TÁTICO INTEGRADO (VERSÃO TOTAL)
+#  PMESP MANAGER ULTIMATE V8.0 - TÁTICO INTEGRADO (VERSÃO FINAL)
 # ==================================================================
 
 # --- ARQUIVOS DE DADOS ---
@@ -9,10 +9,18 @@ DB_CHAMADOS="/etc/pmesp_tickets.json"
 CONFIG_SMTP="/etc/msmtprc"
 LOG_MONITOR="/var/log/pmesp_monitor.log"
 
-# Garante arquivos básicos e limpa linhas vazias
+# Garante arquivos básicos
 [ ! -f "$DB_PMESP" ] && touch "$DB_PMESP" && chmod 666 "$DB_PMESP"
 [ ! -f "$DB_CHAMADOS" ] && touch "$DB_CHAMADOS" && chmod 666 "$DB_CHAMADOS"
 [ ! -f "$LOG_MONITOR" ] && touch "$LOG_MONITOR" && chmod 644 "$LOG_MONITOR"
+
+# --- ROTINA DE LIMPEZA E UNIFICAÇÃO (AUTO-CURA) ---
+# Executa toda vez que o script inicia para garantir que o banco esteja limpo
+if [ -s "$DB_PMESP" ]; then
+    tmp_clean=$(mktemp)
+    # O comando abaixo remove duplicatas reais e linhas mal formatadas
+    jq -s 'unique_by(.usuario) | .[]' -c "$DB_PMESP" 2>/dev/null > "$tmp_clean" && mv "$tmp_clean" "$DB_PMESP"
+fi
 
 # --- CORES ---
 R="\033[1;31m"; G="\033[1;32m"; Y="\033[1;33m"; B="\033[1;34m"
@@ -23,7 +31,7 @@ LINE_H="${C}═${NC}"
 
 cabecalho() {
     clear
-    # Conta objetos JSON reais no arquivo de forma segura
+    # Conta usuários únicos no JSON
     _tuser=$(jq -s 'length' "$DB_PMESP" 2>/dev/null || echo "0")
     _ons=$(who | grep -v 'root' | wc -l)
     _ip=$(wget -qO- ipv4.icanhazip.com 2>/dev/null || echo "N/A")
@@ -37,7 +45,7 @@ cabecalho() {
 
 barra() { echo -e "${C}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"; }
 
-# --- GESTÃO DE USUÁRIOS (01 a 08) ---
+# --- GESTÃO DE USUÁRIOS ---
 
 criar_usuario() {
     cabecalho
@@ -47,8 +55,16 @@ criar_usuario() {
     read -p "Login: " usuario
     [ -z "$usuario" ] && return
     
+    # BLOQUEIO DE DUPLICATA: Verifica no JSON antes de qualquer ação
+    if grep -q "\"usuario\"[ ]*:[ ]*\"$usuario\"" "$DB_PMESP"; then
+        echo -e "\n${R}ERRO: O usuário '$usuario' já consta no Banco de Dados!${NC}"
+        echo -e "${Y}Dica: Use a opção de Remover (03) primeiro se quiser recriar.${NC}"
+        sleep 3; return
+    fi
+
+    # Verifica se já existe no sistema Linux
     if id "$usuario" >/dev/null 2>&1; then 
-        echo -e "\n${R}ERRO: Usuário já existe!${NC}"
+        echo -e "\n${R}ERRO: Usuário já existe no Sistema Linux!${NC}"
         sleep 2; return
     fi
 
@@ -78,7 +94,6 @@ listar_usuarios() {
     barra
     
     if [ -s "$DB_PMESP" ]; then
-        # jq -c transforma qualquer JSON em uma linha única para o loop
         jq -c '.' "$DB_PMESP" 2>/dev/null | while read -r line; do
             u=$(echo "$line" | jq -r .usuario); m=$(echo "$line" | jq -r .matricula)
             ex=$(echo "$line" | jq -r .expiracao); l=$(echo "$line" | jq -r .limite)
@@ -95,15 +110,19 @@ listar_usuarios() {
 remover_usuario_direto() {
     cabecalho
     read -p "Login para remover: " user_alvo
+    [ -z "$user_alvo" ] && return
+
+    # Remove do sistema Linux
     if id "$user_alvo" >/dev/null 2>&1; then
         userdel -f "$user_alvo"
-        tmp=$(mktemp)
-        jq -c "select(.usuario != \"$user_alvo\")" "$DB_PMESP" > "$tmp"
-        mv "$tmp" "$DB_PMESP"
-        echo -e "${G}Removido!${NC}"
-    else
-        echo -e "${R}Não encontrado.${NC}"
     fi
+
+    # Remove do JSON (Limpa todas as instâncias do nome)
+    tmp=$(mktemp)
+    jq -c "select(.usuario != \"$user_alvo\")" "$DB_PMESP" > "$tmp"
+    mv "$tmp" "$DB_PMESP"
+    
+    echo -e "${G}Usuário $user_alvo e todos os seus registros foram removidos!${NC}"
     sleep 2
 }
 
@@ -118,6 +137,8 @@ alterar_validade_direto() {
         jq -c "if .usuario == \"$user_alvo\" then .expiracao = \"$nova_data\" | .dias = \"$novos_dias\" else . end" "$DB_PMESP" > "$tmp"
         mv "$tmp" "$DB_PMESP"
         echo -e "${G}Validade: $nova_data${NC}"
+    else
+        echo -e "${R}Usuário não encontrado.${NC}"
     fi
     sleep 2
 }
@@ -143,13 +164,14 @@ mostrar_usuarios_online() {
         cabecalho
         echo -e "${C}>>> MONITORAMENTO ONLINE (CTRL+C Sair)${NC}"
         barra
-        active=0
-        jq -c '.' "$DB_PMESP" 2>/dev/null | while read -r line; do
-            u=$(echo "$line" | jq -r .usuario); l=$(echo "$line" | jq -r .limite)
+        # Filtra por usuários únicos antes de checar conexões
+        jq -s 'unique_by(.usuario) | .[]' -c "$DB_PMESP" 2>/dev/null | while read -r line; do
+            u=$(echo "$line" | jq -r .usuario)
+            l=$(echo "$line" | jq -r .limite)
+            # Conta conexões reais do sistema
             s=$(who | grep -w "$u" | wc -l)
             if [ "$s" -gt 0 ]; then
                 printf "${Y}%-15s${NC} | %-10s | %-6s\n" "$u" "$s" "$l"
-                active=$((active+1))
             fi
         done
         sleep 2
@@ -160,11 +182,13 @@ recuperar_senha() {
     cabecalho
     read -p "Usuário: " user_alvo
     email_dest=$(jq -r "select(.usuario==\"$user_alvo\") | .email" "$DB_PMESP")
-    if [ ! -z "$email_dest" ]; then
+    if [ ! -z "$email_dest" ] && [ "$email_dest" != "null" ]; then
         nova=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 8)
         echo "$user_alvo:$nova" | chpasswd
         echo -e "Subject: Nova Senha PMESP\n\nSenha: $nova" | msmtp "$email_dest"
         echo -e "${G}Senha enviada!${NC}"
+    else
+        echo -e "${R}Email não encontrado.${NC}"
     fi
     read -p "Enter..."
 }
@@ -178,7 +202,7 @@ atualizar_hwid() {
     echo -e "${G}HWID Atualizado!${NC}"; sleep 2
 }
 
-# --- SUPORTE E SISTEMA (09 a 15) ---
+# --- SUPORTE E SISTEMA ---
 
 novo_chamado() {
     cabecalho
@@ -211,13 +235,14 @@ user $e
 password $s
 account default : gmail
 EOF
-    echo -e "${G}SMTP OK!${NC}"; sleep 2
+    chmod 600 "$CONFIG_SMTP"
+    echo -e "${G}SMTP Configurado!${NC}"; sleep 2
 }
 
 install_deps() {
     cabecalho
-    apt update && apt install jq msmtp net-tools squid sslh -y
-    echo -e "${G}Instalado!${NC}"; sleep 2
+    apt update && apt install jq msmtp net-tools squid sslh wget -y
+    echo -e "${G}Dependências Instaladas!${NC}"; sleep 2
 }
 
 install_squid() {
@@ -225,20 +250,20 @@ install_squid() {
     echo "http_port 3128" > /etc/squid/squid.conf
     echo "acl all src 0.0.0.0/0" >> /etc/squid/squid.conf
     echo "http_access allow all" >> /etc/squid/squid.conf
-    systemctl restart squid; echo -e "${G}Squid On 3128!${NC}"; sleep 2
+    systemctl restart squid; echo -e "${G}Squid Ativo na 3128!${NC}"; sleep 2
 }
 
 install_sslh() {
     cabecalho; apt install sslh -y >/dev/null
     echo 'DAEMON_OPTS="--user sslh --listen 0.0.0.0:443 --ssh 127.0.0.1:22"' > /etc/default/sslh
-    systemctl restart sslh; echo -e "${G}SSLH On 443!${NC}"; sleep 2
+    systemctl restart sslh; echo -e "${G}SSLH Ativo na 443!${NC}"; sleep 2
 }
 
 configurar_cron_monitor() {
     cabecalho
     p=$(readlink -f "$0")
     (crontab -l 2>/dev/null | grep -v "cron-monitor"; echo "*/1 * * * * /bin/bash $p --cron-monitor >/dev/null 2>&1") | crontab -
-    echo -e "${G}Cron Ativado!${NC}"; sleep 2
+    echo -e "${G}Monitoramento Cron Ativado!${NC}"; sleep 2
 }
 
 # --- MENU ---
