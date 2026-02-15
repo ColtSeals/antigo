@@ -1,0 +1,21 @@
+# IP da sua VPS
+serverAddr = "IP"
+# Porta de conexão (a mesma do servidor, para furar bloqueio)
+serverPort = 443
+
+auth.method = "token"
+# A senha que definimos no script da VPS
+auth.token = "PolicialSP2026"
+
+# Configuração Anti-Queda
+transport.tls.enable = true
+transport.heartbeatInterval = 30
+transport.heartbeatTimeout = 90
+
+# O Mapeamento do Túnel
+[[proxies]]
+name = "rdp_viatura"
+type = "tcp"
+localIP = "127.0.0.1"
+localPort = 3389
+remotePort = 1010
