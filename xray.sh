@@ -171,6 +171,7 @@ require_root() {
 
 ensure_dirs() {
   mkdir -p "$UUID_HISTORY_DIR" "$BACKUP_DIR" "$XRAY_LOG_DIR"
+  chown -R nobody:nogroup "$XRAY_LOG_DIR" 2>/dev/null || chown -R nobody "$XRAY_LOG_DIR" 2>/dev/null || true
 }
 
 ensure_deps() {
