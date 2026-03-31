@@ -44,8 +44,8 @@ SERVICE="xray"
 # =========================
 # PADRÕES (alteráveis no menu)
 # =========================
-PORT_TUNNEL_DEFAULT=80
-PORT_SOCKS_DEFAULT=10800
+PORT_TUNNEL_DEFAULT=443
+PORT_SOCKS_DEFAULT=1080
 WS_PATH_DEFAULT="/tunnel"
 REVERSE_DOMAIN_DEFAULT="reverse.intranet"
 SOCKS_LISTEN_DEFAULT="127.0.0.1"
