@@ -10,10 +10,8 @@ wget -qO- https://raw.githubusercontent.com/ColtSeals/antigo/main/install.sh | b
 
 
 
-sudo apt-get update && sudo apt-get install -y curl && \
-curl -sSL https://raw.githubusercontent.com/ColtSeals/antigo/refs/heads/main/xray.sh -o xray.sh && \
-chmod +x xray.sh && \
-mkdir -p /var/log/xray && \
-chown -R nobody:nogroup /var/log/xray && \
-chmod -R 755 /var/log/xray && \
-sudo ./xray.sh
+curl -fsSL https://raw.githubusercontent.com/ColtSeals/antigo/refs/heads/main/xray.sh -o xray_manager.sh && chmod +x xray_manager.sh && sudo bash xray_manager.sh
+
+sudo chown -R nobody /var/log/xray && sudo systemctl restart xray
+
+sudo ./xray_manager.sh
