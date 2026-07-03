@@ -2,7 +2,16 @@
 
 
 
+NOVO
 
+curl -fsSL -o /root/xray.sh "https://raw.githubusercontent.com/ColtSeals/antigo/main/xray.sh"
+curl -fsSL -o /root/vps_sync_restart.sh "https://raw.githubusercontent.com/ColtSeals/antigo/main/vps_sync_restart.sh"
+sed -i 's/\r$//' /root/*.sh && chmod +x /root/*.sh
+bash /root/xray.sh --install
+
+
+
+------------------------------------------------------------------------------------------------------------------------------
 
 
 
